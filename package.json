@@ -1,5 +1,5 @@
 {
-  "name": "genlayer-project",
+  "name": "ai-bounty-judge",
   "type": "module",
   "private": true,
   "workspaces": ["frontend"],
@@ -11,6 +11,6 @@
     "deploy": "genlayer deploy"
   },
   "devDependencies": {
-    "genlayer-js": "^1.1.8"
+    "genlayer-js": "1.1.8"
   }
 }

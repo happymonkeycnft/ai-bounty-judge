@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { WalletButton } from "./WalletButton";
+export function AppShell({children}:{children:React.ReactNode}){return <div className="app-shell"><header className="topbar"><Link href="/" className="brand"><span className="brand-mark">AJ</span><span>AI Bounty Judge</span></Link><nav><Link href="/">Bounties</Link><Link className="primary-link" href="/create">Create bounty</Link><span className="network"><span className="live-dot"/>Bradbury</span><WalletButton/></nav></header>{children}<footer><span>Independent AI review, accepted by GenLayer consensus.</span><a href="https://docs.genlayer.com" target="_blank" rel="noreferrer">How consensus works ↗</a></footer></div>}
