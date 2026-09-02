@@ -1,84 +1,33 @@
-# GenLayer Football Market
+# AI Bounty Judge frontend
 
-Next.js frontend for GenLayer Football Market - AI-powered football match predictions on GenLayer blockchain.
+Next.js interface for the AI Bounty Judge Intelligent Contract on GenLayer Bradbury.
 
-## Setup
+## Configuration
 
-1. Install dependencies:
+The checked-in defaults point to the live Bradbury contract:
 
-**Using bun:**
-```bash
-bun install
+```text
+NEXT_PUBLIC_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
+NEXT_PUBLIC_GENLAYER_CHAIN_ID=4221
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA
 ```
 
-**Using npm:**
-```bash
-npm install
-```
-
-2. Create `.env` file:
-```bash
-cp .env.example .env
-```
-
-3. Configure environment variables:
-   - `NEXT_PUBLIC_CONTRACT_ADDRESS` - GenLayer Football Betting contract address
-   - `NEXT_PUBLIC_STUDIO_URL` - GenLayer Studio URL (default: https://studio.genlayer.com/api)
+Copy `.env.example` to `.env.local` only when overriding these values.
 
 ## Development
 
-**Using bun:**
-```bash
-bun dev
-```
+From the repository root:
 
-**Using npm:**
-```bash
+```shell
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Type-check and build:
 
-## Build
-
-**Using bun:**
-```bash
-bun run build
-bun start
-```
-
-**Using npm:**
-```bash
+```shell
+npm run lint
 npm run build
-npm start
 ```
 
-## Tech Stack
-
-- **Next.js 15** - React framework with App Router
-- **TypeScript** - Type safety
-- **Tailwind CSS v4** - Styling with custom glass-morphism theme
-- **genlayer-js** - GenLayer blockchain SDK
-- **TanStack Query (React Query)** - Data fetching and caching
-- **Radix UI** - Accessible component primitives
-- **shadcn/ui** - Pre-built UI components
-
-## Wallet Management
-
-The app uses GenLayer's account system:
-- **Create Account**: Generate a new private key
-- **Import Account**: Import existing private key
-- **Export Account**: Export your private key (secured)
-- **Disconnect**: Clear stored account data
-
-Accounts are stored in browser's localStorage for development convenience.
-
-## Features
-
-- **Create Bets**: Create football match predictions with team names, game date, and predicted winner (Team 1, Team 2, or Draw)
-- **View Bets**: Real-time bet table with match details, predictions, status, and owners
-- **Resolve Bets**: Bet owners can resolve matches using GenLayer's AI to verify actual results
-- **Leaderboard**: Track top players by points earned from correct predictions
-- **Player Stats**: View your points and ranking in the community
-- **Glass-morphism UI**: Premium dark theme with OKLCH colors, backdrop blur effects, and smooth animations
-- **Real-time Updates**: Automatic data fetching with 3-second polling intervals via TanStack Query
+All bounty, submission, and review screens read Bradbury state. The frontend does not substitute an accepted demo review when the live contract has no accepted review.

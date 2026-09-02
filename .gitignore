@@ -9,7 +9,12 @@
 *.sln
 *.sw?
 .env
+.env.*
+!.env.example
+!frontend/.env.example
 node_modules
+.venv*/
+*.tsbuildinfo
 # Python bytecode
 __pycache__/
 *.pyc
@@ -17,9 +22,11 @@ __pycache__/
 *.pyd
 /context
 /frontend/.next
+/frontend/out
+/coverage
+/.pytest_cache
 /frontend/next-env.d.ts
 /frontend/bun.lock
 /frontend/package-lock.json
 *.compiled.js
 package-lock.json
-

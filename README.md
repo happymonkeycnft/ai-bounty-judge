@@ -1,143 +1,190 @@
-# Sample GenLayer project
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/license/mit/)
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/8Jm4v89VAu)
-[![Telegram](https://img.shields.io/badge/Telegram--T.svg?style=social&logo=telegram)](https://t.me/genlayer)
-[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/yeagerai.svg?style=social&label=Follow%20%40GenLayer)](https://x.com/GenLayer)
-[![GitHub star chart](https://img.shields.io/github/stars/yeagerai/genlayer-project-boilerplate?style=social)](https://star-history.com/#yeagerai/genlayer-js)
+# AI Bounty Judge
 
-## About
-This project includes the boilerplate code for a GenLayer use case implementation, specifically a football bets game.
+**A decentralized acceptance-testing workflow for real-world deliverables.**
 
-## What's included
-- An example intelligent contract (Football Bets) with web access and LLM integration
-- **Direct mode tests** — fast, in-memory unit tests with web/LLM mocking (~ms per test)
-- **Integration tests** — full end-to-end tests against GenLayer Studio
-- **Contract linting** — static analysis to catch common contract issues before deployment
-- **CI pipeline** — GitHub Actions workflow for linting and direct tests
-- A production-ready Next.js 15 frontend with TypeScript, TanStack Query, and Radix UI
-- Configuration file template and deployment scripts
+AI Bounty Judge lets a creator publish natural-language acceptance criteria, a participant submit public web evidence, and independent GenLayer validators produce criterion-level verdicts. An accepted consensus result is persisted on-chain.
 
-## Requirements
-- Python >= 3.12
-- [GenLayer CLI](https://github.com/genlayerlabs/genlayer-cli) globally installed: `npm install -g genlayer`
-- GenLayer Studio (for integration tests and deployment): Install from [Docs](https://docs.genlayer.com/developers/intelligent-contracts/tooling-setup#using-the-genlayer-studio) or use the hosted [GenLayer Studio](https://studio.genlayer.com/)
+> **Bradbury status:** the contract is deployed and the deterministic lifecycle through submission finalization is live. The optimized live review ended in `VALIDATORS_TIMEOUT / TIMEOUT` (2 `AGREE`, 3 `TIMEOUT`), so no Bradbury review was accepted or persisted. The same review path completes successfully with five validators in GLSim.
 
-## Project Structure
+## Problem
 
-```
-contracts/              # Python intelligent contracts
-tests/
-  direct/               # Fast in-memory tests (no Studio required)
-    test_create_bet.py   # Bet creation logic
-    test_resolve_bet.py  # Bet resolution with web/LLM mocks
-    test_views.py        # Read-only view methods
-  integration/           # Full tests against GenLayer Studio
-    test_football_bets.py
-    fixtures.py          # Expected state fixtures
-frontend/               # Next.js 15 app (TypeScript, TanStack Query, Radix UI)
-deploy/                 # TypeScript deployment scripts
-gltest.config.yaml      # Test runner network configuration
-pyproject.toml          # Python/pytest configuration
-.github/workflows/      # CI pipeline
+Creators and participants should not have to trust one centralized reviewer to decide whether a real-world deliverable satisfies a written specification. A single reviewer can be unavailable, inconsistent, biased, or opaque. AI Bounty Judge turns the acceptance decision into an inspectable workflow in which multiple validators independently evaluate the same public evidence against the same ordered criteria.
+
+## How it works
+
+```text
+Creator defines criteria
+        ↓
+Participant submits public evidence
+        ↓
+GenLayer validators inspect the evidence
+        ↓
+Criterion-level PASS / FAIL / UNCLEAR verdicts
+        ↓
+Accepted result persists on-chain
 ```
 
-## Quick Start
+Each bounty has one immutable definition and one participant submission in v1. The participant may edit the draft until finalization. Once finalized, the submission is immutable and can be reviewed permissionlessly.
 
-### 1. Set up Python environment
+## Why GenLayer
+
+An ordinary deterministic smart contract can validate exact values and deterministic state transitions, but it cannot meaningfully inspect arbitrary webpage text and decide whether that evidence satisfies natural-language requirements. GenLayer provides the nondeterministic execution and validator-consensus layer needed for that semantic task while keeping bounty state, lifecycle rules, and accepted results on-chain.
+
+## Architecture
+
+```text
+┌──────────────────┐     writes/reads      ┌──────────────────────────┐
+│ Next.js frontend │ ────────────────────▶ │ AI Bounty Judge contract │
+└──────────────────┘                       └────────────┬─────────────┘
+                                                     │ review_submission
+                                                     ▼
+                                          ┌──────────────────────────┐
+                                          │ GenLayer validator nodes │
+                                          │ render → judge → compare │
+                                          └────────────┬─────────────┘
+                                                     │ accepted result
+                                                     ▼
+                                          ┌──────────────────────────┐
+                                          │ Persisted bounty review  │
+                                          └──────────────────────────┘
+```
+
+## Contract interface
+
+The public interface contains eight methods:
+
+| Method | Type | Purpose |
+| --- | --- | --- |
+| `create_bounty(title, description, criteria, reference_urls)` | Write | Creates an immutable bounty with 1–5 ordered criteria and up to two display-only reference URLs. |
+| `save_submission(bounty_id, primary_url, secondary_url, notes)` | Write | Creates or updates the participant's draft using one required and one optional public HTTPS URL. |
+| `finalize_submission(bounty_id)` | Write | Locks the participant submission and moves the bounty from `OPEN` to `SUBMITTED`. |
+| `review_submission(bounty_id)` | Write | Runs validator adjudication and, only after accepted consensus, persists the review and moves the bounty to `REVIEWED`. |
+| `get_bounty(bounty_id)` | View | Returns the bounty definition, ordered criteria, references, status, and submission flag. |
+| `get_submission(bounty_id)` | View | Returns participant, evidence URLs, notes, and finalization state. |
+| `get_review(bounty_id)` | View | Returns accepted evidence status, ordered criterion verdicts, rationale, summary, and overall outcome. |
+| `get_bounty_count()` | View | Returns the number of created bounties. |
+
+## Consensus design
+
+For each validator node, the optimized review path:
+
+- deduplicates deliverable URLs and performs one web render per unique URL;
+- bounds and combines visible text evidence;
+- performs one structured LLM call covering all ordered criteria;
+- derives the overall outcome from the criterion verdicts;
+- contains validator-side render, provider, JSON, and normalization exceptions as non-equivalence votes.
+
+Validators execute independently. Consensus compares only material verdict fields: evidence availability, criterion count and ordered IDs, criterion verdicts, and the derived overall outcome. Free-form reason and summary wording are deliberately excluded from equivalence, so harmless prose variation cannot create semantic disagreement.
+
+## Security
+
+- **Prompt injection:** webpage content is delimited and treated only as untrusted evidence. Instructions, role changes, and requested outputs embedded in a page are not followed.
+- **Public HTTPS only:** URL validation rejects non-HTTPS URLs, credentials, fragments, private hosts, and unsupported forms.
+- **Bounded evidence:** per-source and combined evidence, LLM fields, criteria, notes, and other stored inputs have fixed limits.
+- **Validator exception containment:** render, provider, malformed JSON, and normalization failures return controlled non-equivalence rather than escaping the validator closure.
+- **Storage-to-memory handling:** storage-backed bounty and submission values are copied before crossing the nondeterministic boundary.
+- **No arbitrary execution:** the contract renders public text and requests structured adjudication; it does not execute submitted scripts, commands, or downloadable artifacts.
+
+## Testing
+
+The validated optimized source has:
+
+- 40 direct contract and consensus tests;
+- 2 integration tests;
+- a five-validator GLSim happy-path review that returns `PASS / PASS / PASS / APPROVED`;
+- GenVM lint coverage;
+- semantic and public-interface validation;
+- frontend TypeScript checking and a production build.
+
+Run the local checks with Python 3.12+ and Node.js 20+:
 
 ```shell
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 2. Lint your contracts
-
-Run the GenVM linter to catch issues before deployment:
-
-```shell
-genvm-lint check contracts/football_bets.py
-```
-
-The linter catches:
-- Forbidden imports and non-deterministic calls
-- Invalid storage types (must use `TreeMap`, `DynArray`, `u256`, etc.)
-- Missing decorators and return type annotations
-- Non-deterministic operations outside equivalence principle blocks
-- And [20+ other rules](https://github.com/genlayerlabs/genvm-linter)
-
-### 3. Run direct mode tests
-
-Direct mode tests run contracts in-memory without needing GenLayer Studio. They use mocks for web requests and LLM calls, giving you fast feedback (~milliseconds per test):
-
-```shell
-pytest tests/direct/ -v
-```
-
-Direct mode features used in these tests:
-- `direct_deploy("contracts/file.py")` — deploy contract in memory
-- `direct_vm.sender = address` — set transaction sender
-- `direct_vm.mock_web(pattern, response)` — mock HTTP/render calls
-- `direct_vm.mock_llm(pattern, response)` — mock LLM responses
-- `direct_vm.expect_revert("message")` — assert expected failures
-- `direct_vm.clear_mocks()` — reset mocks between calls
-
-### 4. Deploy the contract
-
-1. Choose your network: `genlayer network`
-2. Deploy: `genlayer deploy` (runs the script in `/deploy/deployScript.ts`)
-
-### 5. Run integration tests
-
-Integration tests deploy the contract to GenLayer Studio and test with real consensus:
-
-```shell
-gltest tests/integration/ -v -s
-```
-
-These require GenLayer Studio running (local or hosted).
-
-### 6. Set up the frontend
-
-1. Copy `frontend/.env.example` to `frontend/.env`
-2. Add your deployed contract address as `NEXT_PUBLIC_CONTRACT_ADDRESS`
-3. Run:
-
-```shell
-cd frontend
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest tests/direct -q
+.venv/bin/genvm-lint check contracts/ai_bounty_judge.py
 npm install
-npm run dev
+npm run lint
+npm run build
 ```
 
-The app will be available at http://localhost:3000/.
+The integration suite requires a local five-validator GLSim instance:
 
-## How the Football Bets Contract Works
+```shell
+.venv/bin/glsim --port 4000 --validators 5 --no-browser
+.venv/bin/gltest tests/integration/test_lifecycle_smoke.py -v -s
+```
 
-1. **Creating Bets**: Users bet on a football match by providing the game date, teams, and predicted winner.
-2. **Resolving Bets**: After the match, the contract fetches results from BBC Sport, uses an LLM to extract the score, and validates via the equivalence principle.
-3. **Points**: Correct predictions earn points. Users can query their points or the leaderboard.
+## Bradbury deployment
 
-## Testing Strategy
+- **Network:** GenLayer Bradbury (`chainId 4221`)
+- **Contract:** [`0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA`](https://explorer-bradbury.genlayer.com/address/0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA)
+- **Optimized source SHA-256:** `c9c3f0c3342242ec3b7dbcd8e3b922796adf716ed88268e9016a23c1fbf262b9`
 
-| Test Type | Command | Speed | Requires Studio |
-|-----------|---------|-------|-----------------|
-| **Lint** | `genvm-lint check contracts/*.py` | ~250ms | No |
-| **Direct** | `pytest tests/direct/ -v` | ~ms/test | No |
-| **Integration** | `gltest tests/integration/ -v -s` | ~min/test | Yes |
+The controlled live validation successfully completed:
 
-**Recommended workflow:**
-1. Lint after every contract change
-2. Run direct tests frequently during development
-3. Run integration tests before deployment to verify consensus behavior
+- deployment — 5/5 `AGREE`;
+- `create_bounty` — 5/5 `AGREE`;
+- `save_submission` — 5/5 `AGREE`;
+- `finalize_submission` — 5/5 `AGREE`.
 
-For AI coding agents (Claude Code, Cursor, etc.), the linter and direct tests provide the fast feedback loop needed for iterative development without requiring a running Studio instance.
+The resulting bounty is `SUBMITTED` with a finalized Example Domain submission.
 
-## Community
-- **[Discord](https://discord.gg/8Jm4v89VAu)**: Discussions, support, and announcements
-- **[Telegram](https://t.me/genlayer)**: Informal chats and quick updates
+## Bradbury review status
 
-## Documentation
-For detailed information, see our [documentation](https://docs.genlayer.com/).
+The single optimized live review reached:
+
+```text
+VALIDATORS_TIMEOUT / TIMEOUT
+```
+
+Validator outcome:
+
+```text
+2 AGREE
+3 TIMEOUT
+```
+
+The validator executions that completed agreed; no semantic disagreement or deterministic violation was reported. Because consensus timed out, **no accepted review was persisted on Bradbury** and the project does not claim a successful live Bradbury adjudication. The equivalent five-validator GLSim review completes successfully with all three criteria passing and an `APPROVED` outcome. Current evidence therefore points to a Bradbury validator-runtime limitation for this live nondeterministic path, rather than a disagreement over the material verdict.
+
+## Frontend configuration
+
+The frontend reads the live Bradbury contract by default:
+
+```text
+NEXT_PUBLIC_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
+NEXT_PUBLIC_GENLAYER_CHAIN_ID=4221
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA
+```
+
+The application does not synthesize an accepted Bradbury review. A result page is available only when `get_review` returns an accepted on-chain result.
+
+## Limitations
+
+- Evidence must be available at public, text-readable HTTPS URLs.
+- The current Bradbury validator runtime timed out on the optimized live nondeterministic review path.
+- v1 supports one participant submission and no resubmission after finalization.
+- Escrow and payments are not implemented.
+
+## Future milestones
+
+- revision and resubmission workflows;
+- multiple participant submissions;
+- escrow and settlement;
+- appeals and review escalation;
+- bounded GitHub repository inspection.
+
+## Project structure
+
+```text
+contracts/ai_bounty_judge.py       Intelligent Contract
+tests/direct/                      Direct contract and consensus tests
+tests/integration/                 GLSim lifecycle tests
+frontend/app/                      Next.js application routes
+frontend/lib/contracts/            GenLayerJS contract adapter
+deploy/deployScript.ts             Deployment entry point
+```
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+MIT. See [LICENSE](LICENSE).
