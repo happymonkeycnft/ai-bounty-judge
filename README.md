@@ -4,7 +4,7 @@
 
 AI Bounty Judge lets a creator publish natural-language acceptance criteria, a participant submit public web evidence, and independent GenLayer validators produce criterion-level verdicts. An accepted consensus result is persisted on-chain.
 
-> **Bradbury status:** the contract is deployed and the deterministic lifecycle through submission finalization is live. The optimized live review ended in `VALIDATORS_TIMEOUT / TIMEOUT` (2 `AGREE`, 3 `TIMEOUT`), so no Bradbury review was accepted or persisted. The same review path completes successfully with five validators in GLSim.
+> **Bradbury status:** the steward-feedback revision is live at [`0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E`](https://explorer-bradbury.genlayer.com/address/0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E). Bounty 1 completed `ACCEPTED / AGREE / FINISHED_WITH_RETURN` with an on-chain `APPROVED` review, one `PASS` criterion, and all three evidence fingerprints persisted.
 
 ## Problem
 
@@ -55,30 +55,59 @@ The public interface contains eight methods:
 
 | Method | Type | Purpose |
 | --- | --- | --- |
-| `create_bounty(title, description, criteria, reference_urls)` | Write | Creates an immutable bounty with 1–5 ordered criteria and up to two display-only reference URLs. |
+| `create_bounty(title, description, criteria, reference_urls)` | Write | Creates an immutable bounty with 1–5 ordered criteria and up to two creator-reference URLs used during adjudication. |
 | `save_submission(bounty_id, primary_url, secondary_url, notes)` | Write | Creates or updates the participant's draft using one required and one optional public HTTPS URL. |
 | `finalize_submission(bounty_id)` | Write | Locks the participant submission and moves the bounty from `OPEN` to `SUBMITTED`. |
 | `review_submission(bounty_id)` | Write | Runs validator adjudication and, only after accepted consensus, persists the review and moves the bounty to `REVIEWED`. |
 | `get_bounty(bounty_id)` | View | Returns the bounty definition, ordered criteria, references, status, and submission flag. |
 | `get_submission(bounty_id)` | View | Returns participant, evidence URLs, notes, and finalization state. |
-| `get_review(bounty_id)` | View | Returns accepted evidence status, ordered criterion verdicts, rationale, summary, and overall outcome. |
+| `get_review(bounty_id)` | View | Returns the accepted outcome, ordered verdicts and rationale, plus participant, reference, and combined-input evidence fingerprints. |
 | `get_bounty_count()` | View | Returns the number of created bounties. |
 
 ## Consensus design
 
-For each validator node, the optimized review path:
+For each validator node, the revised review path:
 
-- deduplicates deliverable URLs and performs one web render per unique URL;
-- bounds and combines visible text evidence;
+- deduplicates participant and creator-reference URLs and performs one web render per unique URL;
+- bounds participant evidence to 3,000 characters per source and 5,000 combined, and creator-reference evidence to 1,800 per source and 3,000 combined;
+- fingerprints the exact bounded participant evidence, reference evidence, and combined ordered adjudication input with SHA-256;
 - performs one structured LLM call covering all ordered criteria;
 - derives the overall outcome from the criterion verdicts;
 - contains validator-side render, provider, JSON, and normalization exceptions as non-equivalence votes.
 
-Validators execute independently. Consensus compares only material verdict fields: evidence availability, criterion count and ordered IDs, criterion verdicts, and the derived overall outcome. Free-form reason and summary wording are deliberately excluded from equivalence, so harmless prose variation cannot create semantic disagreement.
+Validators execute independently. Consensus compares evidence availability, the derived overall outcome, ordered criterion IDs and verdicts, and all three evidence fingerprints. A validator that fetched materially different bounded content therefore disagrees. Free-form reason and summary wording are deliberately excluded, so harmless prose variation cannot create semantic disagreement.
+
+## Steward-feedback improvements
+
+### Evidence anchoring
+
+Accepted reviews persist SHA-256 fingerprints of the exact bounded participant evidence and creator-reference evidence used in adjudication, plus a combined fingerprint covering the ordered criteria and both bounded evidence records. Hashing happens after rendering, outer-whitespace trimming, and truncation, inside the same validator execution that performs adjudication—not during a later fetch.
+
+The contract anchors the exact bounded evidence content used in adjudication. It proves what accepted validators reviewed, even if the live source changes later.
+
+### Provenance
+
+The accepted review is keyed to an immutable finalized submission. Its participant address and submitted URLs remain available through `get_submission`; creator reference URLs and ordered criteria remain available through `get_bounty`; `get_review` exposes the accepted fingerprints. Complete webpage text is not stored on-chain.
+
+### Creator references
+
+Up to two creator-reference URLs now actively participate in the single structured adjudication call per validator. The prompt separates acceptance criteria, participant evidence, and creator-reference evidence. References may clarify expectations but cannot override explicit criteria. All fetched material is delimited as untrusted evidence, and embedded instructions, role changes, or output-format requests must be ignored.
+
+### Validator consistency
+
+Participant, reference, and combined-input fingerprints are material consensus fields. Validators cannot accept one verdict while relying on materially different fetched content. Ordered verdicts remain material; prose reasons and summaries remain non-material.
+
+### Recovery
+
+Failed or timed-out consensus commits no contract state. The bounty remains `SUBMITTED`, no accepted review exists, and `review_submission(bounty_id)` can be safely attempted again. Once consensus accepts a review, the bounty becomes `REVIEWED` and the accepted result cannot be overwritten. There is no admin override and no misleading on-chain failed-attempt counter.
+
+### Mutable-source limitation
+
+The original webpage can still change, disappear, or move after review, but the accepted evidence fingerprints preserve what was actually judged. This mechanism does **not** prove legal domain ownership, make an external webpage immutable, or guarantee permanent content availability.
 
 ## Security
 
-- **Prompt injection:** webpage content is delimited and treated only as untrusted evidence. Instructions, role changes, and requested outputs embedded in a page are not followed.
+- **Prompt injection:** participant and creator-reference content is separately delimited and treated only as untrusted evidence. Instructions, role changes, and requested outputs embedded in either source are not followed.
 - **Public HTTPS only:** URL validation rejects non-HTTPS URLs, credentials, fragments, private hosts, and unsupported forms.
 - **Bounded evidence:** per-source and combined evidence, LLM fields, criteria, notes, and other stored inputs have fixed limits.
 - **Validator exception containment:** render, provider, malformed JSON, and normalization failures return controlled non-equivalence rather than escaping the validator closure.
@@ -87,9 +116,9 @@ Validators execute independently. Consensus compares only material verdict field
 
 ## Testing
 
-The validated optimized source has:
+The locally validated steward-feedback revision has:
 
-- 40 direct contract and consensus tests;
+- 45 direct contract and consensus tests;
 - 2 integration tests;
 - a five-validator GLSim happy-path review that returns `PASS / PASS / PASS / APPROVED`;
 - GenVM lint coverage;
@@ -118,8 +147,8 @@ The integration suite requires a local five-validator GLSim instance:
 ## Bradbury deployment
 
 - **Network:** GenLayer Bradbury (`chainId 4221`)
-- **Contract:** [`0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA`](https://explorer-bradbury.genlayer.com/address/0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA)
-- **Optimized source SHA-256:** `c9c3f0c3342242ec3b7dbcd8e3b922796adf716ed88268e9016a23c1fbf262b9`
+- **Contract:** [`0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E`](https://explorer-bradbury.genlayer.com/address/0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E)
+- **Steward-revision source SHA-256:** `d7970b6b1788d5eec5b042555354b948f977f3cdb70c27ade76406031fe8c36c`
 
 The controlled live validation successfully completed:
 
@@ -128,24 +157,29 @@ The controlled live validation successfully completed:
 - `save_submission` — 5/5 `AGREE`;
 - `finalize_submission` — 5/5 `AGREE`.
 
-The resulting bounty is `SUBMITTED` with a finalized Example Domain submission.
+The resulting bounty is `REVIEWED` with a finalized Example Domain submission and an accepted review.
 
-## Bradbury review status
+## Live Bradbury validation
 
-The single optimized live review reached:
+- **Bounty:** `1`
+- **Participant evidence:** [https://example.com](https://example.com)
+- **Creator reference:** [https://www.iana.org/help/example-domains](https://www.iana.org/help/example-domains)
+- **Criterion:** The submitted page is an example domain page intended for documentation use.
+- **Final verdict:** `APPROVED` / `PASS`
+- **Review EVM transaction:** `0x2001af9f7105ab31bb022a5c2d39bc2142babd727a7a40818d59072e6591ce91`
+- **GenLayer transaction:** `0x63b5a88fc317582083d5cd39bb34005ae782f0fb4f3e526cc52e07630bec433c`
+- **Execution hash:** `0x184c96f3aff48dd8fa977f2f8ec9e2c0a8f38940b8a9ee6db4e6a6d962548ba5`
+- **Consensus:** `ACCEPTED / AGREE / FINISHED_WITH_RETURN`
+
+Five validators committed and revealed votes in round 0. Three matching validators voted `AGREE`; two validators timed out. The three matching results reached accepted consensus, with no semantic disagreement or deterministic violation.
+
+Persisted evidence fingerprints:
 
 ```text
-VALIDATORS_TIMEOUT / TIMEOUT
+participant: 91955c7a8bc7ff0826e1767bb5125691f618cd4d661585c51db04ef1bfe0d107
+reference:   1126f174c199f4399f7d973f79ca132eed7e961b31c726d474ba7f9ac194473a
+combined:    a967a16b104ef3e0bf247064cb6a65842dfcb6b71cd9236cfcf0f5ff40599b2b
 ```
-
-Validator outcome:
-
-```text
-2 AGREE
-3 TIMEOUT
-```
-
-The validator executions that completed agreed; no semantic disagreement or deterministic violation was reported. Because consensus timed out, **no accepted review was persisted on Bradbury** and the project does not claim a successful live Bradbury adjudication. The equivalent five-validator GLSim review completes successfully with all three criteria passing and an `APPROVED` outcome. Current evidence therefore points to a Bradbury validator-runtime limitation for this live nondeterministic path, rather than a disagreement over the material verdict.
 
 ## Frontend configuration
 
@@ -154,15 +188,15 @@ The frontend reads the live Bradbury contract by default:
 ```text
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
 NEXT_PUBLIC_GENLAYER_CHAIN_ID=4221
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA
+NEXT_PUBLIC_CONTRACT_ADDRESS=0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E
 ```
 
-The application does not synthesize an accepted Bradbury review. A result page is available only when `get_review` returns an accepted on-chain result.
+The application does not synthesize an accepted Bradbury review. Accepted result pages display the three stored fingerprints and warn that live webpages may later change. While a bounty remains `SUBMITTED`, the same review action remains available because a failed consensus committed no accepted state.
 
 ## Limitations
 
 - Evidence must be available at public, text-readable HTTPS URLs.
-- The current Bradbury validator runtime timed out on the optimized live nondeterministic review path.
+- Individual live validators may time out; accepted consensus requires a sufficient matching validator result.
 - v1 supports one participant submission and no resubmission after finalization.
 - Escrow and payments are not implemented.
 
