@@ -9,7 +9,7 @@ The checked-in defaults point to the live Bradbury contract:
 ```text
 NEXT_PUBLIC_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
 NEXT_PUBLIC_GENLAYER_CHAIN_ID=4221
-NEXT_PUBLIC_CONTRACT_ADDRESS=0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA
+NEXT_PUBLIC_CONTRACT_ADDRESS=0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E
 ```
 
 Copy `.env.example` to `.env.local` only when overriding these values.

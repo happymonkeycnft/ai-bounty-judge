@@ -6,7 +6,7 @@ import { getContractAddress, getEthereumProvider } from "@/lib/genlayer/client";
 
 export type Bounty = { id:number; creator:string; title:string; description:string; criteria:string[]; reference_urls:string[]; status:"OPEN"|"SUBMITTED"|"REVIEWED"; submission_exists:boolean };
 export type Submission = { bounty_id:number; participant:string; primary_url:string; secondary_url:string; notes:string; finalized:boolean };
-export type Review = { bounty_id:number; evidence_status:"AVAILABLE"|"PARTIAL"|"UNAVAILABLE"; overall:"APPROVED"|"REJECTED"|"NEEDS_REVISION"; summary:string; accepted:boolean; criteria:Array<{criterion_id:number;result:"PASS"|"FAIL"|"UNCLEAR";reason:string}> };
+export type Review = { bounty_id:number; evidence_status:"AVAILABLE"|"PARTIAL"|"UNAVAILABLE"; overall:"APPROVED"|"REJECTED"|"NEEDS_REVISION"; summary:string; accepted:boolean; participant_evidence_hash:string; reference_evidence_hash:string; combined_review_input_hash:string; criteria:Array<{criterion_id:number;result:"PASS"|"FAIL"|"UNCLEAR";reason:string}> };
 
 function plain(value:any):any { if (value instanceof Map) return Object.fromEntries([...value].map(([k,v])=>[k,plain(v)])); if(Array.isArray(value)) return value.map(plain); if(typeof value==="bigint") return Number(value); if(value&&typeof value==="object") return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,plain(v)])); return value; }
 

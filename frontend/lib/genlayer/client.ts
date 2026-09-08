@@ -4,7 +4,7 @@ export const GENLAYER_CHAIN_ID = 4221;
 export const GENLAYER_CHAIN_ID_HEX = "0x107D";
 export const BRADBURY_RPC = process.env.NEXT_PUBLIC_GENLAYER_RPC_URL || "https://rpc-bradbury.genlayer.com";
 export const BRADBURY_EXPLORER = "https://explorer-bradbury.genlayer.com";
-export const BRADBURY_CONTRACT = "0x468DDaac3a2f88D2823549940B0Bbf4AC379A0CA";
+export const BRADBURY_CONTRACT = "0xADA20BcEe58F5E9D984E14Baa5F1aD8af7C0197E";
 export const GENLAYER_NETWORK = {
   chainId: GENLAYER_CHAIN_ID_HEX,
   chainName: "GenLayer Bradbury",
