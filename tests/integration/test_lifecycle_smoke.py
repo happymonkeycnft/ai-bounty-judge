@@ -53,7 +53,7 @@ def test_five_validator_review_happy_path(accounts):
                     "The page explains its illustrative purpose.",
                     "The page states that the domain may be used in documentation without prior coordination or permission.",
                 ],
-                [],
+                ["https://reference.example.org/spec"],
             ]
         ).transact()
     )
@@ -89,6 +89,11 @@ def test_five_validator_review_happy_path(accounts):
                     "method": "GET",
                     "status": 200,
                     "body": "Example Domain. This domain is for use in illustrative examples in documents. You may use this domain in literature without prior coordination or asking for permission.",
+                },
+                "https://reference.example.org/spec": {
+                    "method": "GET",
+                    "status": 200,
+                    "body": "Reference specification: explicit acceptance criteria remain authoritative.",
                 }
             }
         },
@@ -101,3 +106,6 @@ def test_five_validator_review_happy_path(accounts):
     accepted = creator.get_review(args=[1]).call()
     assert accepted["overall"] == "APPROVED"
     assert accepted["accepted"] is True
+    assert len(accepted["participant_evidence_hash"]) == 64
+    assert len(accepted["reference_evidence_hash"]) == 64
+    assert len(accepted["combined_review_input_hash"]) == 64
